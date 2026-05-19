@@ -123,4 +123,7 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    // 👇 TAMBAHKAN BARIS INI DI SINI YA NAYLA 👇
+    'api_url' => env('API_URL', 'http://127.0.0.1:8000/api/v1'),
+
 ];
