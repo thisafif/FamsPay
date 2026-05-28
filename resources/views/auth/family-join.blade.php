@@ -39,7 +39,7 @@
             @endif
 
             {{-- Form Pengiriman Kode Bergabung --}}
-            <form action="{{ route('family.join.process') }}" method="POST">
+            <form action="{{ route('family.join.post') }}" method="POST">
                 @csrf
                 
                 <div style="position: relative; margin-bottom: 24px; text-align: left;">

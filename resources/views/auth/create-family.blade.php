@@ -75,7 +75,7 @@
             @endif
 
             {{-- Form Pengiriman Data --}}
-            <form method="POST" action="{{ route('family.store') }}">
+            <form action="{{ route('family.create.post') }}" method="POST">
                 @csrf
 
                 {{-- Input Teks Nama Keluarga dengan Icon Rumah --}}

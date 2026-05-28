@@ -30,7 +30,7 @@
         @endif
 
         {{-- Form --}}
-        <form method="POST" action="{{ route('register') }}">
+        <form action="{{ route('register') }}" method="POST">
             @csrf
 
             {{-- Nama --}}
