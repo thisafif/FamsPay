@@ -150,9 +150,66 @@ Route::get('/family/join-success', function() {
     return view('auth.family-join-success');
 })->name('family.join-success');
 
-Route::get('/dashboard', function() {
+Route::get('/dashboard', function(Request $request) {
     if (!session('auth_token')) return redirect()->route('login');
-    return view('welcome');
+
+    $user      = session('user');
+    $isAdmin   = ($user['role'] ?? 'member') === 'admin';
+    $token     = session('auth_token');
+
+    // ── Ambil data dashboard dari internal controller ──
+    $userModel = new \App\Models\User();
+    $userModel->forceFill($user ?? []);
+    $userModel->exists = true;
+
+    $dashboardController = app(\App\Http\Controllers\Api\V1\DashboardController::class);
+
+    // Buat request palsu dengan user resolver & bearer token
+    $fakeRequest = \Illuminate\Http\Request::create('/api/v1/dashboard/personal', 'GET');
+    $fakeRequest->setUserResolver(fn() => $userModel);
+    $fakeRequest->headers->set('Authorization', 'Bearer ' . $token);
+
+    $personalData    = [];
+    $familyData      = [];
+    $membersData     = [];
+    $isNewUser       = false;
+
+    try {
+        $personalResp = $dashboardController->personal($fakeRequest);
+        $personalData = $personalResp->getData(true)['data'] ?? [];
+    } catch (\Exception $e) {
+        $personalData = [];
+    }
+
+    // Cek apakah user baru (tidak ada transaksi sama sekali)
+    $isNewUser = empty($personalData['recent_transactions'])
+        && ($personalData['wallet_balance'] ?? 0) === 0
+        && ($personalData['total_savings'] ?? 0) === 0;
+
+    if ($isAdmin) {
+        try {
+            $familyFakeReq = \Illuminate\Http\Request::create('/api/v1/dashboard/family', 'GET');
+            $familyFakeReq->setUserResolver(fn() => $userModel);
+            $familyData = $dashboardController->family($familyFakeReq)->getData(true)['data'] ?? [];
+        } catch (\Exception $e) {
+            $familyData = [];
+        }
+
+        // Ambil daftar anggota keluarga
+        try {
+            $familyController = app(\App\Http\Controllers\Api\V1\FamilyController::class);
+            $membersFakeReq   = \Illuminate\Http\Request::create('/api/v1/families/members', 'GET');
+            $membersFakeReq->setUserResolver(fn() => $userModel);
+            $membersResp  = $familyController->members($membersFakeReq);
+            $membersData  = $membersResp->getData(true)['data'] ?? [];
+        } catch (\Exception $e) {
+            $membersData = [];
+        }
+    }
+
+    return view('dashboard', compact(
+        'user', 'isAdmin', 'personalData', 'familyData', 'membersData', 'isNewUser'
+    ));
 })->name('dashboard');
 
 // Proses Submit Buat Grup Keluarga Langsung ke BE
@@ -244,3 +301,28 @@ Route::get('/', function () {
     }
     return redirect()->route('login');
 });
+
+// Logout Web
+Route::post('/logout', function (Request $request) {
+    try {
+        $token = session('auth_token');
+        if ($token) {
+            $authController = app(\App\Http\Controllers\Api\V1\AuthController::class);
+            $fakeReq = \Illuminate\Http\Request::create('/api/v1/logout', 'POST');
+            $userArr = session('user');
+            $userModel = new \App\Models\User();
+            $userModel->forceFill($userArr ?? []);
+            $userModel->exists = true;
+            $fakeReq->setUserResolver(fn() => $userModel);
+            $authController->logout($fakeReq);
+        }
+    } catch (\Exception $e) {}
+
+    Session::flush();
+    return redirect()->route('login');
+})->name('logout');
+
+Route::get('/transaksi', fn() => view('transaksi'))->name('transaksi');
+Route::get('/anggota', fn() => view('kelola-anggota'))->name('anggota');
+Route::get('/goals', fn() => view('goals'))->name('goals');
+Route::get('/pengaturan', fn() => view('pengaturan'))->name('pengaturan');
