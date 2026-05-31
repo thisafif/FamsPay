@@ -64,6 +64,25 @@
         .dompet-rose .card-stack-1 { background: #fda4af; }
         .dompet-rose .card-stack-2 { background: #fb7185; }
         .dompet-rose .wallet-body  { background: linear-gradient(145deg, #9f1239 0%, #be123c 100%); }
+        /* Green front, colored stacks behind */
+        .dompet-green-red .card-stack-1 { background: #fca5a5; }
+        .dompet-green-red .card-stack-2 { background: #f87171; }
+        .dompet-green-red .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
+        .dompet-green-purple .card-stack-1 { background: #d8b4fe; }
+        .dompet-green-purple .card-stack-2 { background: #c084fc; }
+        .dompet-green-purple .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
+        .dompet-green-blue .card-stack-1 { background: #93c5fd; }
+        .dompet-green-blue .card-stack-2 { background: #60a5fa; }
+        .dompet-green-blue .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
+        .dompet-green-olive .card-stack-1 { background: #bef264; }
+        .dompet-green-olive .card-stack-2 { background: #a3e635; }
+        .dompet-green-olive .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
+        .dompet-green-teal .card-stack-1 { background: #99f6e4; }
+        .dompet-green-teal .card-stack-2 { background: #5eead4; }
+        .dompet-green-teal .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
+        .dompet-green-rose .card-stack-1 { background: #fda4af; }
+        .dompet-green-rose .card-stack-2 { background: #fb7185; }
+        .dompet-green-rose .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
 
         /* Modal */
         .modal-overlay {
@@ -348,7 +367,7 @@
 const TOKEN   = '{{ session("auth_token") }}';
 const HEADERS = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' };
 
-const DOMPET_COLORS = ['dompet-darkred','dompet-purple','dompet-blue','dompet-lime','dompet-teal','dompet-rose'];
+const DOMPET_COLORS = ['dompet-green-red','dompet-green-purple','dompet-green-blue','dompet-green-olive','dompet-green-teal','dompet-green-rose'];
 let members = [];
 let currentMember = null;
 let joinCode = '';
@@ -370,8 +389,11 @@ async function loadFamily() {
 function renderJoinCode(code, targetId) {
     const el = document.getElementById(targetId);
     if (!el || !code) return;
+    const isModal = targetId === 'invite-code-chars';
+    const bgClass = isModal ? 'bg-emerald-100' : 'bg-white/20';
+    const textColor = isModal ? 'color:#059669' : 'color:white';
     el.innerHTML = code.split('').map(c =>
-        `<div class="w-9 h-11 bg-white/20 rounded-xl flex items-center justify-center text-white font-extrabold text-base">${c}</div>`
+        `<div class="w-9 h-11 ${bgClass} rounded-xl flex items-center justify-center font-extrabold text-base" style="${textColor}">${c}</div>`
     ).join('');
 }
 
@@ -639,7 +661,8 @@ async function submitLimit() {
         const mi = members.findIndex(m => m.id === currentMember.id);
         if (mi !== -1) members[mi].monthly_limit_base = amount;
 
-        // Refresh detail
+        // Refresh cards grid and detail
+        renderMembers();
         openDetail(mi !== -1 ? mi : 0);
         closeLimitModal();
     } catch(e) { errEl.textContent = 'Koneksi gagal.'; errEl.classList.remove('hidden'); btn.textContent = 'Simpan'; btn.disabled = false; }

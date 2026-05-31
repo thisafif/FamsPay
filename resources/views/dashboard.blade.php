@@ -727,10 +727,10 @@
                 <div class="flex-1 grid grid-cols-2 gap-3">
                     <div class="stat-card px-4 py-4">
                         <p class="text-slate-400 text-xs font-medium mb-1">Saldo dapat dipakai</p>
-                        <p class="text-slate-800 text-xl font-extrabold">{{ fmtRp($walletBalance) }}</p>
+                        <p class="text-slate-800 text-xl font-extrabold">{{ $limitBase > 0 ? fmtRp($remainingLimit) : fmtRp($walletBalance) }}</p>
                         <div class="flex items-center gap-1 mt-1">
                             <svg class="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
-                            <span class="text-[10px] text-emerald-500 font-medium">Saldo aktif</span>
+                            <span class="text-[10px] text-emerald-500 font-medium">{{ $limitBase > 0 ? 'Sisa limit bulan ini' : 'Saldo aktif' }}</span>
                         </div>
                     </div>
                     <div class="stat-card px-4 py-4">

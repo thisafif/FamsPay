@@ -23,7 +23,7 @@
             style="position: absolute; bottom: 0; left: 0; width: 65%; max-width: 320px; pointer-events: none;">
 
         {{-- Auth Card — compact, truly centered --}}
-        <div style="position: relative; z-index: 10; width: 100%; max-width: 360px; margin: 0 16px; background: white; border-radius: 18px; box-shadow: 0 16px 40px rgba(0,0,0,0.16);">
+        <div style="position: relative; z-index: 10; width: 100%; max-width: 400px; margin: 0 24px; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.18);">
             {{ $slot }}
         </div>
 
