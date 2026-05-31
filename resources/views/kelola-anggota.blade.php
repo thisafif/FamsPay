@@ -26,43 +26,44 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #d1fae5; border-radius: 10px; }
 
-        /* Wallet card */
+        /* Wallet card — ukuran proporsional seperti referensi */
         .wallet-physical {
-            border-radius: 18px; position: relative; overflow: visible;
-            aspect-ratio: 5 / 3; width: 100%;
+            border-radius: 20px; position: relative; overflow: visible;
+            aspect-ratio: 5 / 3.2; width: 100%;
         }
         .wallet-physical .card-stack-1, .wallet-physical .card-stack-2 {
-            position: absolute; left: 12px; right: 12px; height: 14px;
-            border-radius: 12px 12px 0 0; z-index: 0;
+            position: absolute; left: 16px; right: 16px;
+            border-radius: 14px 14px 0 0; z-index: 0;
         }
-        .wallet-physical .card-stack-1 { top: -10px; }
-        .wallet-physical .card-stack-2 { top: -5px; }
+        .wallet-physical .card-stack-1 { top: -14px; height: 18px; }
+        .wallet-physical .card-stack-2 { top: -7px;  height: 14px; }
         .wallet-physical .wallet-body {
-            position: absolute; inset: 0; z-index: 1; border-radius: 18px;
-            padding: 16px 20px 14px; display: flex; flex-direction: column; justify-content: space-between;
+            position: absolute; inset: 0; z-index: 1; border-radius: 20px;
+            padding: 18px 20px 16px; display: flex; flex-direction: column; justify-content: space-between;
         }
         .wallet-body .wallet-slot {
-            background: rgba(0,0,0,0.15); border-radius: 8px; height: 26px; flex: 1;
+            background: rgba(0,0,0,0.18); border-radius: 9px; height: 28px; flex: 1;
             display: flex; align-items: center; padding: 0 10px;
         }
-        .dompet-darkred .card-stack-1 { background: #7f1d1d; }
-        .dompet-darkred .card-stack-2 { background: #991b1b; }
-        .dompet-darkred .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
-        .dompet-purple .card-stack-1 { background: #6b21a8; }
-        .dompet-purple .card-stack-2 { background: #7e22ce; }
-        .dompet-purple .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
-        .dompet-blue .card-stack-1 { background: #1d4ed8; }
-        .dompet-blue .card-stack-2 { background: #2563eb; }
-        .dompet-blue .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
-        .dompet-lime .card-stack-1 { background: #4d7c0f; }
-        .dompet-lime .card-stack-2 { background: #65a30d; }
+        /* stack colors per variant */
+        .dompet-darkred .card-stack-1 { background: #fca5a5; }
+        .dompet-darkred .card-stack-2 { background: #f87171; }
+        .dompet-darkred .wallet-body  { background: linear-gradient(145deg, #7f1d1d 0%, #991b1b 100%); }
+        .dompet-purple .card-stack-1 { background: #d8b4fe; }
+        .dompet-purple .card-stack-2 { background: #c084fc; }
+        .dompet-purple .wallet-body  { background: linear-gradient(145deg, #6b21a8 0%, #7e22ce 100%); }
+        .dompet-blue .card-stack-1 { background: #93c5fd; }
+        .dompet-blue .card-stack-2 { background: #60a5fa; }
+        .dompet-blue .wallet-body  { background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 100%); }
+        .dompet-lime .card-stack-1 { background: #bbf7d0; }
+        .dompet-lime .card-stack-2 { background: #86efac; }
         .dompet-lime .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
-        .dompet-teal .card-stack-1 { background: #0f766e; }
-        .dompet-teal .card-stack-2 { background: #0d9488; }
-        .dompet-teal .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
-        .dompet-rose .card-stack-1 { background: #9f1239; }
-        .dompet-rose .card-stack-2 { background: #be123c; }
-        .dompet-rose .wallet-body  { background: linear-gradient(145deg, #059669 0%, #10B981 100%); }
+        .dompet-teal .card-stack-1 { background: #99f6e4; }
+        .dompet-teal .card-stack-2 { background: #5eead4; }
+        .dompet-teal .wallet-body  { background: linear-gradient(145deg, #0f766e 0%, #0d9488 100%); }
+        .dompet-rose .card-stack-1 { background: #fda4af; }
+        .dompet-rose .card-stack-2 { background: #fb7185; }
+        .dompet-rose .wallet-body  { background: linear-gradient(145deg, #9f1239 0%, #be123c 100%); }
 
         /* Modal */
         .modal-overlay {
@@ -182,7 +183,8 @@
         {{-- List View --}}
         <div id="panel-list">
             <div class="bg-white rounded-2xl border border-slate-100 p-6">
-                <h3 class="font-bold text-slate-700 text-sm mb-5">Daftar Anggota & Pengaturan Limit</h3>
+                <h3 class="font-bold text-slate-700 text-sm mb-4">Daftar Anggota & Pengaturan Limit</h3>
+                <div id="over-limit-banner" class="hidden mb-4"></div>
                 <div id="members-grid" class="grid grid-cols-2 gap-6">
                     <div class="col-span-2 py-12 text-center text-slate-400 text-sm">
                         <div class="flex flex-col items-center gap-2">
@@ -400,32 +402,90 @@ function renderMembers() {
         return;
     }
 
+    // Check any over-limit members for banner
+    const overLimitMembers = members.filter(m => {
+        const base = m.monthly_limit_base || 0;
+        const used = m.current_month_expense || 0;
+        return base > 0 && used >= base;
+    });
+    const warningBanner = document.getElementById('over-limit-banner');
+    if (overLimitMembers.length && warningBanner) {
+        warningBanner.innerHTML = `
+            <div class="bg-rose-50 border border-rose-200 rounded-2xl px-5 py-3.5 flex items-center gap-3 mb-2">
+                <div class="w-8 h-8 bg-rose-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-rose-700">⚠️ Peringatan Limit Terlampaui</p>
+                    <p class="text-xs text-rose-500 mt-0.5">${overLimitMembers.map(m => '<strong>' + (m.full_name||'-') + '</strong>').join(', ')} telah melampaui limit pengeluaran bulanan. Segera tinjau dan sesuaikan.</p>
+                </div>
+            </div>`;
+        warningBanner.classList.remove('hidden');
+    } else if (warningBanner) {
+        warningBanner.classList.add('hidden');
+    }
+
     grid.innerHTML = members.map((m, idx) => {
-        const color = DOMPET_COLORS[idx % DOMPET_COLORS.length];
-        const limitBase = m.monthly_limit_base || 5000000;
+        const color    = DOMPET_COLORS[idx % DOMPET_COLORS.length];
+        const limitBase = m.monthly_limit_base || 0;  // 0 = belum diset admin
         const usedLimit = m.current_month_expense || 0;
         const pct = limitBase > 0 ? Math.min(Math.round(usedLimit / limitBase * 100), 100) : 0;
-        const pctClass = pct >= 90 ? 'text-rose-500 bg-rose-50 border border-rose-200' : pct >= 70 ? 'text-amber-600 bg-amber-50 border border-amber-200' : 'text-emerald-600 bg-emerald-50 border border-emerald-200';
+        const isOverLimit = limitBase > 0 && usedLimit >= limitBase;
+        const isHighUsage = limitBase > 0 && pct >= 80 && !isOverLimit;
+
+        const pctClass = isOverLimit
+            ? 'text-rose-600 bg-rose-100 border border-rose-300 font-bold'
+            : pct >= 70 ? 'text-amber-600 bg-amber-50 border border-amber-200'
+            : limitBase === 0 ? 'text-slate-400 bg-slate-100 border border-slate-200'
+            : 'text-emerald-600 bg-emerald-50 border border-emerald-200';
+
+        const pctLabel = limitBase === 0 ? 'Limit Belum Diset' : (isOverLimit ? '🔴 Over Limit!' : `Limit ${pct}% Terpakai`);
+
+        const limitDisplay = limitBase > 0 ? fmtRp(limitBase) : 'Belum diset';
+        const mName = (m.full_name || '-');
+        const mInit = mName.charAt(0).toUpperCase();
+
+        // Progress bar inside card
+        const barWidth = limitBase > 0 ? Math.min(pct, 100) : 0;
+        const barColor = isOverLimit ? 'rgba(252,165,165,0.9)' : pct >= 70 ? 'rgba(253,230,138,0.9)' : 'rgba(255,255,255,0.7)';
 
         return `
-        <div class="cursor-pointer group">
-            <div class="wallet-physical ${color} mt-3" onclick="openDetail(${idx})">
+        <div class="cursor-pointer group" style="margin-top: 16px;">
+            <div class="wallet-physical ${color}" onclick="openDetail(${idx})">
                 <div class="card-stack-1"></div>
                 <div class="card-stack-2"></div>
-                <div class="wallet-body text-white" style="padding:14px 16px 12px;">
-                    <div style="position:absolute;top:10px;right:10px;width:26px;height:26px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;" class="group-hover:bg-white/30 transition-colors">
-                        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+                <div class="wallet-body text-white">
+                    ${isOverLimit ? `
+                    <div style="position:absolute;top:10px;left:10px;right:40px;background:rgba(239,68,68,0.28);border:1px solid rgba(252,165,165,0.5);border-radius:7px;padding:3px 8px;display:flex;align-items:center;gap:4px;z-index:2;">
+                        <svg style="width:9px;height:9px;flex-shrink:0;" fill="none" stroke="#fca5a5" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01"/></svg>
+                        <span style="font-size:8px;color:#fca5a5;font-weight:700;">Limit Terlampaui</span>
+                    </div>` : ''}
+
+                    {{-- Arrow button top-right --}}
+                    <div style="position:absolute;top:12px;right:12px;width:28px;height:28px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:2;" class="group-hover:bg-white/30 transition-colors">
+                        <svg style="width:13px;height:13px;" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M17 7H7M17 7v10"/></svg>
                     </div>
-                    <p class="text-white/60 text-[8px] uppercase tracking-wider mb-0.5">Dompet Milik:</p>
-                    <p class="font-extrabold text-sm text-white pr-8 leading-tight mb-1">${(m.full_name || '-').slice(0,22)}</p>
-                    <div class="flex gap-2 mt-1">
-                        <div class="wallet-slot" style="height:24px;flex:1;"><span class="text-white text-[10px] font-bold">${fmtRp(limitBase)}</span></div>
-                        <div class="wallet-slot" style="height:24px;flex:1;"><span class="text-white text-[10px] font-bold">${fmtRp(m.wallet_balance || 0)}</span></div>
+
+                    {{-- Top: label + name --}}
+                    <div style="padding-top:${isOverLimit ? '22px' : '0'};">
+                        <p style="font-size:9px;color:rgba(255,255,255,0.65);text-transform:uppercase;letter-spacing:0.08em;margin:0 0 3px;">Dompet Milik:</p>
+                        <p style="font-size:20px;font-weight:800;color:white;line-height:1.15;margin:0;padding-right:36px;letter-spacing:-0.3px;">${mName.length > 18 ? mName.slice(0,18)+'…' : mName}</p>
+                    </div>
+
+                    {{-- Bottom: limit badge + slots --}}
+                    <div>
+                        <div style="margin-bottom:6px;">
+                            <span style="display:inline-block;font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;${isOverLimit ? 'background:rgba(239,68,68,0.3);color:#fca5a5;' : isHighUsage ? 'background:rgba(251,191,36,0.3);color:#fde68a;' : limitBase === 0 ? 'background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);' : 'background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.85);'}">${pctLabel}</span>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <div class="wallet-slot" style="flex:1;"><span style="font-size:11px;font-weight:700;color:white;">↓ ${limitDisplay}</span></div>
+                            <div class="wallet-slot" style="flex:1;"><span style="font-size:11px;font-weight:700;color:white;">↑ ${fmtRp(m.wallet_balance || 0)}</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="mt-2 flex items-center justify-between px-1">
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${pctClass}">Limit ${pct}% Terpakai</span>
+            <div class="mt-2 flex items-center justify-between px-0.5">
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${pctClass}">${pctLabel}</span>
                 <button onclick="openDetail(${idx})" class="text-[10px] text-emerald-600 font-semibold hover:text-emerald-700">Lihat Detail →</button>
             </div>
         </div>`;
@@ -445,18 +505,34 @@ async function openDetail(idx) {
     document.getElementById('detail-name').textContent = m.full_name || '-';
     document.getElementById('detail-avatar').textContent = (m.full_name || 'A').charAt(0).toUpperCase();
     document.getElementById('detail-role-badge').textContent = m.role === 'admin' ? 'Admin' : 'Member';
-    document.getElementById('detail-limit').textContent = fmtRp(m.monthly_limit_base || 5000000);
+    const limitBase = m.monthly_limit_base || 0;
+    const usedLimit = m.current_month_expense || 0;
+    document.getElementById('detail-limit').textContent = limitBase > 0 ? fmtRp(limitBase) : 'Belum diset';
     document.getElementById('detail-balance').textContent = fmtRp(m.wallet_balance || 0);
 
     // Limit bar
-    const limitBase = m.monthly_limit_base || 5000000;
-    const usedLimit = m.current_month_expense || 0;
     const pct = limitBase > 0 ? Math.min(Math.round(usedLimit / limitBase * 100), 100) : 0;
-    document.getElementById('detail-limit-pct').textContent = pct + '%';
+    const isOver = limitBase > 0 && usedLimit >= limitBase;
+    document.getElementById('detail-limit-pct').textContent = limitBase > 0 ? pct + '%' : '—';
+    document.getElementById('detail-limit-pct').className = isOver ? 'text-xs font-bold text-rose-600' : 'text-xs font-bold text-emerald-600';
     document.getElementById('detail-limit-bar').style.width = pct + '%';
-    document.getElementById('detail-limit-bar').className = `h-full rounded-full transition-all duration-700 ${pct >= 90 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`;
+    document.getElementById('detail-limit-bar').className = `h-full rounded-full transition-all duration-700 ${isOver ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`;
     document.getElementById('detail-used').textContent = fmtRp(usedLimit);
-    document.getElementById('detail-limit-max').textContent = fmtRp(limitBase);
+    document.getElementById('detail-limit-max').textContent = limitBase > 0 ? fmtRp(limitBase) : 'Belum diset';
+
+    // Over-limit warning in detail
+    const warningEl = document.getElementById('detail-over-limit-warn');
+    if (warningEl) {
+        if (isOver) {
+            warningEl.innerHTML = `<div class="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 flex items-center gap-2 mb-3">
+                <svg class="w-4 h-4 text-rose-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <p class="text-xs font-semibold text-rose-600">Anggota ini telah melampaui limit pengeluaran bulanannya.</p>
+            </div>`;
+            warningEl.classList.remove('hidden');
+        } else {
+            warningEl.classList.add('hidden');
+        }
+    }
 
     // Dompet card color
     const card = document.getElementById('detail-wallet-card');
@@ -467,7 +543,7 @@ async function openDetail(idx) {
     document.getElementById('panel-list').style.display = 'none';
     document.getElementById('panel-detail').classList.add('open');
 
-    // Load transactions for this member (admin can see all in family)
+    // Load transactions for this member
     await loadMemberTransactions(m.id);
 }
 

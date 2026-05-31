@@ -274,9 +274,10 @@
     $budgetData     = $personalData['budget_analysis'] ?? null;
     $recentTxns     = $personalData['recent_transactions'] ?? [];
 
-    $limitBase      = $budgetData['monthly_limit_base']      ?? 5000000;
-    $usedLimit      = $budgetData['total_expense_in_period'] ?? $monthlyExpense;
-    $remainingLimit = $budgetData['remaining_limit']         ?? ($limitBase - $usedLimit);
+    // Limit: jika belum ada budget_analysis (belum di-set admin), tampilkan 0/0
+    $limitBase      = $budgetData['monthly_limit_base']      ?? 0;
+    $usedLimit      = $budgetData['total_expense_in_period'] ?? 0;
+    $remainingLimit = $budgetData['remaining_limit']         ?? 0;
 
     // Weekly money flow — ambil dari daily_flow jika tersedia, fallback ke 0 semua hari
     $dailyFlow = $personalData['daily_flow'] ?? [];
@@ -285,6 +286,8 @@
     // Normalisasi data per-hari; key bisa berupa 'Mon','Tue',dst ATAU index 0-6
     $incPerDay = [0,0,0,0,0,0,0];
     $expPerDay = [0,0,0,0,0,0,0];
+
+    // Jika BE tidak kirim daily_flow, build dari recent transactions
     if (!empty($dailyFlow)) {
         foreach ($dailyFlow as $idx => $day) {
             $i = is_numeric($idx) ? (int)$idx : $idx;
@@ -293,8 +296,75 @@
                 $expPerDay[$i] = (int)($day['expense'] ?? 0);
             }
         }
+    } else {
+        // Fallback: hitung dari recent transactions (per hari dalam minggu)
+        foreach ($recentTxns as $txn) {
+            if (!empty($txn['txn_date'])) {
+                $dow = (int)\Carbon\Carbon::parse($txn['txn_date'])->format('N') - 1; // 0=Mon..6=Sun
+                if ($txn['type'] === 'income')  $incPerDay[$dow] += (int)$txn['amount'];
+                else                             $expPerDay[$dow] += (int)$txn['amount'];
+            }
+        }
     }
     $maxFlow = max(array_merge($incPerDay, $expPerDay, [1]));
+
+    // Hari ini (0=Sen..6=Min) untuk highlight
+    $todayDow = (int)\Carbon\Carbon::now()->format('N') - 1;
+
+    // Budget kategori dari recent transactions (bulan ini)
+    $catMap = [];
+    foreach ($recentTxns as $txn) {
+        if (($txn['type'] ?? '') === 'expense' && !empty($txn['category_name'])) {
+            $c = $txn['category_name'];
+            $catMap[$c] = ($catMap[$c] ?? 0) + (int)$txn['amount'];
+        }
+    }
+    // Fallback jika tidak ada data
+    if (empty($catMap) && $monthlyExpense > 0) {
+        $catMap = ['Lainnya' => $monthlyExpense];
+    }
+    // Warna per kategori (konsisten)
+    $catColorPalette = [
+        'Food'           => '#10B981', 'Makanan'        => '#10B981',
+        'Transport'      => '#3B82F6', 'Transportasi'   => '#3B82F6',
+        'Shopping'       => '#F59E0B', 'Belanja'        => '#F59E0B',
+        'Health'         => '#EF4444', 'Kesehatan'      => '#EF4444',
+        'Education'      => '#8B5CF6', 'Pendidikan'     => '#8B5CF6',
+        'Entertainment'  => '#EC4899', 'Hiburan'        => '#EC4899',
+        'Bills'          => '#F97316', 'Tagihan'        => '#F97316',
+        'Housing'        => '#14B8A6', 'Perumahan'      => '#14B8A6',
+        'Savings'        => '#06B6D4', 'Tabungan'       => '#06B6D4',
+        'Salary'         => '#22C55E', 'Gaji'           => '#22C55E',
+        'Transfer'       => '#6366F1',
+        'Servis'         => '#84CC16',
+        'Other'          => '#94A3B8', 'Lainnya'        => '#94A3B8',
+    ];
+    $fallbackColors = ['#10B981','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#F97316','#14B8A6','#06B6D4','#94A3B8'];
+    $totalCatExp = array_sum($catMap);
+    $catChartData = [];
+    $fci = 0;
+    foreach ($catMap as $cName => $cAmt) {
+        $catChartData[] = [
+            'name'  => $cName,
+            'amount'=> $cAmt,
+            'pct'   => $totalCatExp > 0 ? round($cAmt / $totalCatExp * 100) : 0,
+            'color' => $catColorPalette[$cName] ?? $fallbackColors[$fci % count($fallbackColors)],
+        ];
+        $fci++;
+    }
+
+    // Goals untuk card target tabungan (via API call inline)
+    $goalsList = [];
+    try {
+        $userModel2 = new \App\Models\User();
+        $userModel2->forceFill($user ?? []);
+        $userModel2->exists = true;
+        $goalCtrl = app(\App\Http\Controllers\Api\V1\GoalController::class);
+        $goalFakeReq = \Illuminate\Http\Request::create('/api/v1/goals','GET');
+        $goalFakeReq->setUserResolver(fn() => $userModel2);
+        $goalResp = $goalCtrl->index($goalFakeReq);
+        $goalsList = $goalResp->getData(true)['data'] ?? [];
+    } catch(\Exception $e) { $goalsList = []; }
 
     // Format IDR
     function fmtRp(int|float $n): string {
@@ -542,21 +612,24 @@
     <div id="main-wrapper" class="flex-1 flex flex-col min-h-screen">
 
         {{-- Header --}}
-        <header class="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-100 px-7 py-4 flex justify-between items-center">
+        <header class="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-100 px-7 py-4 flex justify-between items-center relative">
             <div>
                 <h1 class="text-base font-bold text-slate-800">Selamat Datang, {{ explode(' ', $user['full_name'] ?? 'Pengguna')[0] }}! 👋</h1>
                 <p class="text-xs text-slate-400">Saatnya kelola keuanganmu sekarang juga.</p>
             </div>
             <div class="flex items-center gap-2.5">
-                <button class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-emerald-50 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-colors">
+                {{-- Search Button --}}
+                <button id="btn-search" onclick="toggleSearch()" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-emerald-50 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                     </svg>
                 </button>
-                <button class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-emerald-50 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-colors relative">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                {{-- Notification Button --}}
+                <button id="btn-notif" onclick="toggleNotif()" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-emerald-50 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-colors relative">
+                    <svg id="notif-icon-off" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
                     </svg>
+                    <span id="notif-dot" class="hidden absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full"></span>
                 </button>
                 <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
                     <div class="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-xs">
@@ -568,9 +641,44 @@
                     </div>
                 </div>
             </div>
+
+            {{-- Search Dropdown --}}
+            <div id="search-dropdown" class="hidden absolute top-full right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden" style="right:24px;">
+                <div class="p-3">
+                    <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                        <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <input id="search-input" type="text" placeholder="Cari halaman atau fitur..." oninput="runSearch(this.value)"
+                            class="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400">
+                    </div>
+                </div>
+                <div id="search-results" class="pb-2"></div>
+            </div>
+
+            {{-- Notif Toast --}}
+            <div id="notif-toast" class="hidden absolute top-full right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 p-4" style="right:24px;">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-bold text-slate-700">Notifikasi</p>
+                    <span id="notif-status-badge" class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Nonaktif</span>
+                </div>
+                <div id="notif-content"></div>
+                <button id="btn-enable-notif" onclick="enableNotifications()" class="w-full mt-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl transition-colors">
+                    Aktifkan Notifikasi
+                </button>
+            </div>
         </header>
 
         <main class="flex-1 px-7 py-6 space-y-5">
+
+            {{-- ── Admin: peringatan anggota over-limit ── --}}
+            @if($isAdmin && !empty($membersData))
+            @php
+                $overLimitMembers = [];
+                foreach($membersData as $m) {
+                    // We don't have limit data in UserResource, so just flag if member role
+                    // Real check happens in kelola-anggota. Show placeholder if family budget shows issue.
+                }
+            @endphp
+            @endif
 
             {{-- ── ROW 1: Wallet + Net Flow (kiri) | Stats 2x2 (kanan) ── --}}
             <div class="flex gap-5 items-start">
@@ -583,18 +691,24 @@
                         <div class="card-stack-1"></div>
                         <div class="card-stack-2"></div>
                         <div class="wallet-body text-white">
-                            <div class="wallet-arrow">
+                            <a href="{{ route('transaksi') }}" class="wallet-arrow" title="Lihat Transaksi" style="text-decoration:none;">
                                 <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M17 7H7M17 7v10"/>
                                 </svg>
+                            </a>
+                            @if($limitBase > 0 && $usedLimit >= $limitBase)
+                            <div class="mb-1 bg-rose-400/30 border border-rose-300/50 rounded-lg px-2 py-1 flex items-center gap-1.5">
+                                <svg class="w-3 h-3 text-rose-200 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                <span class="text-[9px] text-rose-100 font-semibold">Kamu telah melewati limit bulanan!</span>
                             </div>
+                            @endif
                             <p class="text-white/75 text-[10px] font-semibold uppercase tracking-widest mb-1">Sisa limit bulan ini (IDR):</p>
-                            <p class="text-2xl font-extrabold tracking-tight mb-3">{{ fmtRp($remainingLimit) }}</p>
+                            <p class="text-2xl font-extrabold tracking-tight mb-3">{{ $limitBase > 0 ? fmtRp($remainingLimit) : 'Rp0' }}</p>
                             <div class="flex gap-3">
                                 <div class="flex-1">
                                     <p class="text-white/60 text-[9px] uppercase tracking-wider mb-1">Limit Bulanan</p>
                                     <div class="wallet-slot flex items-center px-3">
-                                        <span class="text-white text-[11px] font-bold">{{ fmtRp($limitBase) }}</span>
+                                        <span class="text-white text-[11px] font-bold">{{ $limitBase > 0 ? fmtRp($limitBase) : 'Belum diset' }}</span>
                                     </div>
                                 </div>
                                 <div class="flex-1">
@@ -688,17 +802,21 @@
                                     $eH = $maxFlow > 0 ? max(2, round(($expPerDay[$di] / $maxFlow) * 100)) : 2;
                                     $iTip = 'Rp'.number_format($incPerDay[$di],0,',','.');
                                     $eTip = 'Rp'.number_format($expPerDay[$di],0,',','.');
+                                    $isToday = ($di === $todayDow);
+                                    $incColor = $isToday ? 'bg-emerald-600' : 'bg-emerald-500';
+                                    $expColor = $isToday ? 'bg-emerald-400' : 'bg-emerald-200';
+                                    $dayLabel = $isToday ? '<span style="color:#059669;font-weight:700;">'.$day.'</span>' : $day;
                                 @endphp
                                 <div class="flex-1 flex flex-col items-center gap-0">
                                     <div class="w-full flex items-end justify-center gap-1" style="height:110px;">
-                                        <div class="chart-bar bg-emerald-500 w-full max-w-[14px]"
+                                        <div class="chart-bar {{ $incColor }} w-full max-w-[14px] {{ $isToday ? 'ring-1 ring-emerald-600 ring-offset-1' : '' }}"
                                              style="height:{{ $iH }}%;"
                                              data-tip="Masuk: {{ $iTip }}"></div>
-                                        <div class="chart-bar bg-emerald-200 w-full max-w-[14px]"
+                                        <div class="chart-bar {{ $expColor }} w-full max-w-[14px]"
                                              style="height:{{ $eH }}%;"
                                              data-tip="Keluar: {{ $eTip }}"></div>
                                     </div>
-                                    <p class="text-[9px] text-slate-400 font-medium mt-1.5">{{ $day }}</p>
+                                    <p class="text-[9px] text-slate-400 font-medium mt-1.5">{!! $dayLabel !!}</p>
                                 </div>
                                 @endforeach
                             </div>
@@ -706,30 +824,27 @@
                     </div>
                 </div>
 
-                {{-- Budget Donut --}}
+                {{-- Budget Donut — kategori real dari transaksi bulan ini --}}
                 <div class="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col">
                     <h3 class="font-bold text-slate-700 text-sm mb-3">Budget</h3>
-                    @php
-                        $categories = ['Belanja', 'Servis', 'Transfer', 'Lainnya'];
-                        $catColors  = ['#10B981', '#34D399', '#6EE7B7', '#d1fae5'];
-                    @endphp
                     <div class="flex-1 flex flex-col items-center justify-center">
                         <div class="relative w-28 h-28">
                             <svg viewBox="0 0 36 36" class="w-28 h-28 -rotate-90">
                                 <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" stroke-width="3.8"/>
-                                @php
-                                    $offset   = 0;
-                                    $percents = [40, 25, 20, 15];
-                                    $strokes  = ['#10B981', '#34D399', '#6EE7B7', '#d1fae5'];
-                                @endphp
-                                @foreach($percents as $pi => $pct)
+                                @if(!empty($catChartData))
+                                @php $offset2 = 0; @endphp
+                                @foreach($catChartData as $cd)
                                 <circle cx="18" cy="18" r="15.9" fill="none"
-                                    stroke="{{ $strokes[$pi] }}" stroke-width="3.8"
-                                    stroke-dasharray="{{ $pct }} {{ 100 - $pct }}"
-                                    stroke-dashoffset="{{ -$offset }}"
+                                    stroke="{{ $cd['color'] }}" stroke-width="3.8"
+                                    stroke-dasharray="{{ $cd['pct'] }} {{ 100 - $cd['pct'] }}"
+                                    stroke-dashoffset="{{ -$offset2 }}"
                                     stroke-linecap="round"/>
-                                @php $offset += $pct; @endphp
+                                @php $offset2 += $cd['pct']; @endphp
                                 @endforeach
+                                @else
+                                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" stroke-width="3.8"
+                                    stroke-dasharray="100 0"/>
+                                @endif
                             </svg>
                             <div class="absolute inset-0 flex flex-col items-center justify-center">
                                 <p class="text-[9px] text-slate-400 font-medium">Total</p>
@@ -737,14 +852,21 @@
                             </div>
                         </div>
                     </div>
+                    @if(!empty($catChartData))
                     <div class="mt-3 space-y-1.5">
-                        @foreach($categories as $ci => $cat)
-                        <div class="flex items-center gap-2 text-xs text-slate-600">
-                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:{{ $catColors[$ci] }}"></span>
-                            {{ $cat }}
+                        @foreach(array_slice($catChartData, 0, 5) as $cd)
+                        <div class="flex items-center justify-between text-xs text-slate-600">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:{{ $cd['color'] }}"></span>
+                                {{ $cd['name'] }}
+                            </div>
+                            <span class="text-[10px] text-slate-400 font-medium">{{ $cd['pct'] }}%</span>
                         </div>
                         @endforeach
                     </div>
+                    @else
+                    <p class="text-center text-slate-400 text-xs mt-3">Belum ada pengeluaran bulan ini</p>
+                    @endif
                 </div>
             </div>
 
@@ -844,42 +966,53 @@
                     <div class="grid grid-cols-2 gap-4">
                         @foreach($membersData as $mi => $member)
                         @php
-                            $dColor = $dompetColors[$mi % count($dompetColors)];
-                            $mInit  = strtoupper(substr($member['full_name'] ?? 'A', 0, 1));
-                            $mBal   = $member['wallet_balance'] ?? 0;
+                            $dColor  = $dompetColors[$mi % count($dompetColors)];
+                            $mInit   = strtoupper(substr($member['full_name'] ?? 'A', 0, 1));
+                            $mBal    = $member['wallet_balance'] ?? 0;
+                            $mName   = $member['full_name'] ?? '-';
                         @endphp
-                        {{-- Mini dompet fisik per member --}}
-                        <div class="wallet-physical {{ $dColor }} mt-3">
+                        {{-- Mini dompet fisik per member — lebih besar, dengan dekorasi --}}
+                        <a href="{{ route('transaksi') }}" class="wallet-physical {{ $dColor }} mt-3 block" style="text-decoration:none;">
                             <div class="card-stack-1"></div>
                             <div class="card-stack-2"></div>
-                            <div class="wallet-body text-white" style="padding:12px 14px 12px;">
+                            <div class="wallet-body text-white" style="padding:12px 14px 12px; position:relative;">
+                                {{-- Decorative dots --}}
+                                <div style="position:absolute;bottom:8px;right:8px;display:flex;gap:3px;opacity:0.25;">
+                                    <div style="width:5px;height:5px;border-radius:50%;background:white;"></div>
+                                    <div style="width:5px;height:5px;border-radius:50%;background:white;"></div>
+                                    <div style="width:5px;height:5px;border-radius:50%;background:white;"></div>
+                                </div>
                                 {{-- Arrow --}}
                                 <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;">
                                     <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M17 7H7M17 7v10"/>
                                     </svg>
                                 </div>
-                                <p class="text-white/60 text-[8px] uppercase tracking-wider">Dompet milik:</p>
-                                <p class="font-extrabold text-xs leading-tight mt-0.5 mb-2.5 pr-7">{{ Str::limit($member['full_name'] ?? '-', 18) }}</p>
-                                <div class="flex items-center gap-2">
-                                    <div class="wallet-slot flex items-center px-2" style="height:22px;flex:1;">
-                                        <span class="text-white text-[10px] font-bold">{{ fmtRp($mBal) }}</span>
-                                    </div>
-                                    <div class="w-6 h-6 rounded-full bg-white/25 flex items-center justify-center text-[10px] font-bold flex-shrink-0">{{ $mInit }}</div>
+                                {{-- Avatar + name --}}
+                                <div class="flex items-center gap-1.5 mb-1">
+                                    <div style="width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;">{{ $mInit }}</div>
+                                    <p class="text-white/70 text-[9px] uppercase tracking-wider">Dompet milik:</p>
+                                </div>
+                                <p class="font-extrabold text-sm leading-tight pr-7 mb-1">{{ Str::limit($mName, 16) }}</p>
+                                <p class="text-white/80 text-xs font-semibold mb-2">{{ fmtRp($mBal) }}</p>
+                                {{-- Limit bar --}}
+                                <div style="height:3px;background:rgba(255,255,255,0.2);border-radius:4px;overflow:hidden;">
+                                    <div style="height:100%;background:rgba(255,255,255,0.7);width:{{ min(100, ($mBal > 0 ? 60 : 5)) }}%;border-radius:4px;"></div>
                                 </div>
                             </div>
-                        </div>
+                        </a>
                         @endforeach
                     </div>
                 </div>
 
                 @else
-                {{-- MEMBER: Target Tabungan --}}
+                {{-- MEMBER: Target Tabungan — real data --}}
                 <div class="bg-white rounded-2xl border border-slate-100 p-5">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-slate-700 text-sm">Target Tabungan</h3>
                         <a href="{{ route('goals') }}" class="text-xs text-emerald-600 font-semibold hover:text-emerald-700">Lihat Semua</a>
                     </div>
+                    @if(empty($goalsList))
                     <div class="py-8 flex flex-col items-center text-center">
                         <div class="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-3">
                             <svg class="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -892,6 +1025,34 @@
                             + Tambah Target
                         </a>
                     </div>
+                    @else
+                    <div class="space-y-3">
+                        @php
+                            $goalProgressColors = ['bg-emerald-500','bg-blue-500','bg-purple-500','bg-amber-500','bg-teal-500','bg-rose-500'];
+                        @endphp
+                        @foreach(array_slice($goalsList, 0, 4) as $gi => $gl)
+                        @php
+                            $gCollected = $gl['current_amount'] ?? 0;
+                            $gTarget    = $gl['target_amount']  ?? 1;
+                            $gPct       = $gTarget > 0 ? min(100, round($gCollected / $gTarget * 100)) : 0;
+                            $gBarColor  = $goalProgressColors[$gi % count($goalProgressColors)];
+                        @endphp
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <p class="text-xs font-semibold text-slate-700 truncate max-w-[65%]">{{ $gl['title'] }}</p>
+                                <span class="text-[10px] font-bold text-emerald-600">{{ $gPct }}%</span>
+                            </div>
+                            <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1">
+                                <div class="{{ $gBarColor }} h-full rounded-full transition-all duration-700" style="width:{{ $gPct }}%"></div>
+                            </div>
+                            <p class="text-[10px] text-slate-400">{{ fmtRp($gCollected) }} / {{ fmtRp($gTarget) }}</p>
+                        </div>
+                        @endforeach
+                        @if(count($goalsList) > 4)
+                        <p class="text-xs text-slate-400 text-center pt-1">+{{ count($goalsList) - 4 }} target lainnya</p>
+                        @endif
+                    </div>
+                    @endif
                 </div>
                 @endif
             </div>
@@ -1064,6 +1225,118 @@
     showStep(1);
 })();
 @endif
+
+// ─────────────────────────────────────────
+// SEARCH
+// ─────────────────────────────────────────
+const SEARCH_ROUTES = [
+    { label: 'Dashboard',       icon: '🏠', url: '{{ route("dashboard") }}',   keywords: ['dashboard','beranda','home'] },
+    { label: 'Transaksi',       icon: '💸', url: '{{ route("transaksi") }}',   keywords: ['transaksi','pembayaran','transfer','pengeluaran','pemasukan'] },
+    { label: 'Goals / Target',  icon: '🎯', url: '{{ route("goals") }}',       keywords: ['goals','target','tabungan','saving'] },
+    { label: 'Pengaturan',      icon: '⚙️',  url: '{{ route("pengaturan") }}', keywords: ['pengaturan','profil','akun','password','setting'] },
+    @if($isAdmin)
+    { label: 'Kelola Anggota',  icon: '👥', url: '{{ route("anggota") }}',     keywords: ['anggota','member','keluarga','limit','kelola'] },
+    @endif
+];
+
+function toggleSearch() {
+    const dd = document.getElementById('search-dropdown');
+    const nt = document.getElementById('notif-toast');
+    nt.classList.add('hidden');
+    dd.classList.toggle('hidden');
+    if (!dd.classList.contains('hidden')) {
+        setTimeout(() => document.getElementById('search-input').focus(), 50);
+        document.getElementById('search-results').innerHTML = renderSearchItems(SEARCH_ROUTES);
+    }
+}
+
+function runSearch(q) {
+    const query = q.toLowerCase().trim();
+    const filtered = query ? SEARCH_ROUTES.filter(r =>
+        r.label.toLowerCase().includes(query) || r.keywords.some(k => k.includes(query))
+    ) : SEARCH_ROUTES;
+    document.getElementById('search-results').innerHTML = renderSearchItems(filtered);
+}
+
+function renderSearchItems(items) {
+    if (!items.length) return '<p class="text-center text-xs text-slate-400 py-3">Tidak ditemukan</p>';
+    return items.map(r => `
+        <a href="${r.url}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-emerald-50 transition-colors">
+            <span class="text-base">${r.icon}</span>
+            <span class="text-sm font-medium text-slate-700">${r.label}</span>
+        </a>`).join('');
+}
+
+// ─────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────
+let notifEnabled = false;
+try { notifEnabled = localStorage.getItem('famspay_notif') === '1'; } catch(e){}
+
+function toggleNotif() {
+    const toast = document.getElementById('notif-toast');
+    const dd    = document.getElementById('search-dropdown');
+    dd.classList.add('hidden');
+    toast.classList.toggle('hidden');
+    if (!toast.classList.contains('hidden')) renderNotifContent();
+}
+
+function renderNotifContent() {
+    const badge   = document.getElementById('notif-status-badge');
+    const content = document.getElementById('notif-content');
+    const btn     = document.getElementById('btn-enable-notif');
+    const dot     = document.getElementById('notif-dot');
+
+    if (notifEnabled) {
+        badge.textContent = 'Aktif';
+        badge.className   = 'text-[10px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full';
+        dot.classList.remove('hidden');
+        btn.textContent   = 'Nonaktifkan Notifikasi';
+        btn.className     = btn.className.replace('bg-emerald-500 hover:bg-emerald-600','bg-slate-200 hover:bg-slate-300 text-slate-700');
+        @if($limitBase > 0 && $usedLimit >= $limitBase)
+        content.innerHTML = `<div class="bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 text-xs text-rose-600 font-medium mb-2">⚠️ Limit bulanan Anda sudah terlampaui!</div>`;
+        @elseif($limitBase > 0)
+        const pctUsed = {{ $limitBase > 0 ? round($usedLimit/$limitBase*100) : 0 }};
+        if (pctUsed >= 80) {
+            content.innerHTML = `<div class="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 text-xs text-amber-700 font-medium mb-2">⚠️ Anda telah menggunakan ${pctUsed}% dari limit bulanan.</div>`;
+        } else {
+            content.innerHTML = `<p class="text-xs text-slate-400 py-2 text-center">Tidak ada notifikasi baru.</p>`;
+        }
+        @else
+        content.innerHTML = `<p class="text-xs text-slate-400 py-2 text-center">Belum ada limit yang diset admin.</p>`;
+        @endif
+    } else {
+        badge.textContent = 'Nonaktif';
+        badge.className   = 'text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full';
+        dot.classList.add('hidden');
+        btn.textContent = 'Aktifkan Notifikasi';
+        btn.className = 'w-full mt-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl transition-colors';
+        content.innerHTML = `<p class="text-xs text-slate-400 py-2 text-center">Aktifkan notifikasi untuk peringatan limit.</p>`;
+    }
+}
+
+function enableNotifications() {
+    notifEnabled = !notifEnabled;
+    try { localStorage.setItem('famspay_notif', notifEnabled ? '1' : '0'); } catch(e){}
+    renderNotifContent();
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#btn-search') && !e.target.closest('#search-dropdown')) {
+        document.getElementById('search-dropdown').classList.add('hidden');
+    }
+    if (!e.target.closest('#btn-notif') && !e.target.closest('#notif-toast')) {
+        document.getElementById('notif-toast').classList.add('hidden');
+    }
+});
+
+// Init notif dot state
+if (notifEnabled) {
+    @if($limitBase > 0 && $usedLimit >= $limitBase)
+    document.getElementById('notif-dot').classList.remove('hidden');
+    @endif
+}
 </script>
 
 </body>

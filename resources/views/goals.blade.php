@@ -291,7 +291,7 @@ function renderGoals() {
     }
 
     grid.innerHTML = goals.map((g, idx) => {
-        const collected = g.collected_amount || 0;
+        const collected = g.current_amount || 0;
         const target    = g.target_amount || 1;
         const pct       = Math.min(Math.round(collected / target * 100), 100);
         const iconType  = guessIconType(g.title);
