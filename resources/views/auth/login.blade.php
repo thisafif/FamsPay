@@ -64,11 +64,6 @@
                 </button>
             </div>
 
-            {{-- Lupa Password --}}
-            <div style="text-align: right; margin-bottom: 16px;">
-                <a href="#" style="font-size: 0.72rem; color: #94a3b8; text-decoration: none;">Lupa password?</a>
-            </div>
-
             {{-- Tombol Masuk --}}
             <button type="submit"
                 style="width:100%;background:#10B981;color:white;font-weight:700;font-size:0.85rem;padding:12px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;transition:background 0.15s;"

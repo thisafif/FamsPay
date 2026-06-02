@@ -444,6 +444,33 @@
     </div>
 </div>
 
+{{-- Modal Konfirmasi Hapus Member --}}
+<div id="modal-delete-member" class="modal-overlay" onclick="if(event.target===this)closeDeleteModal()">
+    <div class="modal-box" style="width:380px">
+        <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl flex items-center justify-center bg-rose-100">
+                    <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </div>
+                <h2 class="text-base font-bold text-slate-800">Hapus Anggota</h2>
+            </div>
+            <button onclick="closeDeleteModal()" class="text-slate-400 hover:text-slate-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div id="modal-delete-info" class="bg-slate-50 rounded-2xl p-4 mb-4 text-sm text-slate-600"></div>
+        <div class="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-2">
+            <svg class="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <p class="text-xs text-rose-700">Anggota ini akan <strong>dihapus dari keluarga</strong>. Tindakan ini tidak dapat dibatalkan.</p>
+        </div>
+        <div id="modal-delete-error" class="hidden mb-4 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs text-rose-600"></div>
+        <div class="flex gap-3 mt-2">
+            <button onclick="closeDeleteModal()" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Batal</button>
+            <button onclick="confirmDeleteMember()" id="btn-confirm-delete" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-colors">Ya, Hapus Anggota</button>
+        </div>
+    </div>
+</div>
+
 <script>
 const TOKEN   = '{{ session("auth_token") }}';
 const HEADERS = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' };
@@ -589,7 +616,13 @@ function renderMembers() {
             </div>
             <div class="mt-2 flex items-center justify-between px-0.5">
                 <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${pctClass}">${pctLabel}</span>
-                <button onclick="openDetail(${idx})" class="text-[10px] text-emerald-600 font-semibold hover:text-emerald-700">Lihat Detail →</button>
+                <div class="flex items-center gap-2">
+                    <button onclick="event.stopPropagation();openDeleteModal(${idx})" title="Hapus anggota"
+                        class="w-6 h-6 flex items-center justify-center rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-400 hover:text-rose-600 transition-colors">
+                        <svg style="width:12px;height:12px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                    <button onclick="openDetail(${idx})" class="text-[10px] text-emerald-600 font-semibold hover:text-emerald-700">Lihat Detail →</button>
+                </div>
             </div>
         </div>`;
     }).join('');
@@ -665,7 +698,7 @@ async function loadMemberTransactions(userId) {
         // Admin calls /api/v1/transactions which returns all family txns, filter by user
         const res  = await fetch('/api/v1/transactions', { headers: HEADERS });
         const data = await res.json();
-        const all  = (data.data || []).filter(t => t.user_id === userId || true); // show all, note BE scopes per role
+        const all  = (data.data || []).filter(t => t.user_id === userId); // hanya transaksi milik member ini
         const recent = all.slice(0, 5);
         const days = ['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
         const flowData = new Array(7).fill(0).map(() => ({ inc: 0, exp: 0 }));
@@ -919,6 +952,99 @@ async function submitLimit() {
 }
 
 function showInviteModal() { document.getElementById('modal-invite').classList.add('open'); }
+
+// ─── Delete Member ────────────────────────────────────────────────
+let memberToDelete = null;
+
+function openDeleteModal(idx) {
+    memberToDelete = members[idx];
+    const m = memberToDelete;
+    const name = m.full_name || '-';
+    document.getElementById('modal-delete-info').innerHTML = `
+        <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-600 text-sm flex-shrink-0">${name.charAt(0).toUpperCase()}</div>
+            <div>
+                <p class="font-semibold text-slate-800 text-sm">${name}</p>
+                <p class="text-xs text-slate-400">${m.email || ''}</p>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${m.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${m.role === 'admin' ? 'Admin' : 'Member'}</span>
+            </div>
+        </div>`;
+    document.getElementById('modal-delete-error').classList.add('hidden');
+    document.getElementById('btn-confirm-delete').textContent = 'Ya, Hapus Anggota';
+    document.getElementById('btn-confirm-delete').disabled = false;
+    document.getElementById('modal-delete-member').classList.add('open');
+}
+
+function closeDeleteModal() {
+    document.getElementById('modal-delete-member').classList.remove('open');
+    memberToDelete = null;
+}
+
+async function confirmDeleteMember() {
+    if (!memberToDelete) return;
+    const btn = document.getElementById('btn-confirm-delete');
+    const errEl = document.getElementById('modal-delete-error');
+    errEl.classList.add('hidden');
+    btn.textContent = 'Menghapus...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(`/api/v1/families/members/${memberToDelete.id}`, {
+            method: 'DELETE',
+            headers: HEADERS
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            errEl.textContent = data.message || 'Gagal menghapus anggota.';
+            errEl.classList.remove('hidden');
+            btn.textContent = 'Ya, Hapus Anggota';
+            btn.disabled = false;
+            return;
+        }
+
+        // Hapus dari local state
+        const deletedName = memberToDelete.full_name || '-';
+        members = members.filter(m => m.id !== memberToDelete.id);
+        closeDeleteModal();
+        renderMembers();
+        showDeleteToast(deletedName);
+
+    } catch(e) {
+        errEl.textContent = 'Koneksi gagal.';
+        errEl.classList.remove('hidden');
+        btn.textContent = 'Ya, Hapus Anggota';
+        btn.disabled = false;
+    }
+}
+
+function showDeleteToast(name) {
+    const existing = document.getElementById('delete-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'delete-toast';
+    toast.style.cssText = `
+        position:fixed;bottom:28px;right:28px;z-index:99999;
+        background:#1e293b;color:white;
+        padding:12px 18px;border-radius:14px;
+        font-size:13px;font-weight:600;
+        display:flex;align-items:center;gap:10px;
+        box-shadow:0 8px 32px rgba(0,0,0,0.22);
+        animation: slideInToast .3s ease;
+    `;
+    toast.innerHTML = `
+        <div style="width:24px;height:24px;background:#ef4444;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg style="width:13px;height:13px;" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6"/></svg>
+        </div>
+        <span><strong>${name}</strong> berhasil dihapus dari keluarga</span>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.transition = 'opacity .3s ease';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 350);
+    }, 3500);
+}
 
 // Init
 loadFamily();
