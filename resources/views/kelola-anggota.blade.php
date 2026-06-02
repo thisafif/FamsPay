@@ -100,6 +100,42 @@
         .modal-overlay.open .modal-box { transform: translateY(0) scale(1); }
         .detail-panel { display: none; }
         .detail-panel.open { display: block; }
+
+        /* Role Dropdown */
+        .role-dropdown-wrapper { position: relative; display: inline-block; }
+        .role-badge-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: rgba(255,255,255,0.20); color: white;
+            font-size: 10px; font-weight: 700;
+            padding: 3px 10px 3px 8px; border-radius: 20px;
+            cursor: pointer; border: 1px solid rgba(255,255,255,0.25);
+            transition: background .15s;
+            user-select: none;
+        }
+        .role-badge-btn:hover { background: rgba(255,255,255,0.35); }
+        .role-badge-btn .chevron-icon { transition: transform .2s; flex-shrink: 0; }
+        .role-badge-btn.open .chevron-icon { transform: rotate(180deg); }
+        .role-dropdown-menu {
+            position: absolute; top: calc(100% + 6px); left: 0; min-width: 160px;
+            background: white; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            z-index: 9999; opacity: 0; transform: translateY(-6px) scale(.97);
+            pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+        }
+        .role-dropdown-menu.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
+        .role-dropdown-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: background .12s; color: #1e293b;
+        }
+        .role-dropdown-item:hover { background: #f1fdf7; }
+        .role-dropdown-item.active { background: #d1fae5; color: #065f46; }
+        .role-dropdown-item .role-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .role-dropdown-item .role-dot.admin { background: #059669; }
+        .role-dropdown-item .role-dot.member { background: #94a3b8; }
+
+        /* Modal Konfirmasi Role */
+        #modal-role-confirm .modal-box { width: 380px; }
     </style>
 </head>
 <body class="bg-[#F8FAFC] text-slate-800 antialiased">
@@ -247,7 +283,25 @@
                                         <p id="detail-name" class="font-extrabold text-sm text-white pr-8"></p>
                                     </div>
                                 </div>
-                                <span id="detail-role-badge" class="inline-block bg-white/20 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full mb-3">Member</span>
+                                <div class="role-dropdown-wrapper mb-3" id="detail-role-wrapper">
+                                    <button class="role-badge-btn" id="detail-role-badge" onclick="toggleRoleDropdown(event)">
+                                        <span id="detail-role-label">Member</span>
+                                        <svg class="chevron-icon" style="width:10px;height:10px;" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <div class="role-dropdown-menu" id="role-dropdown-menu">
+                                        <div class="px-3 py-2 border-b border-slate-100">
+                                            <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Ubah Role</p>
+                                        </div>
+                                        <div class="role-dropdown-item" id="role-option-admin" onclick="selectRole('admin')">
+                                            <span class="role-dot admin"></span>
+                                            <span>Admin</span>
+                                        </div>
+                                        <div class="role-dropdown-item" id="role-option-member" onclick="selectRole('member')">
+                                            <span class="role-dot member"></span>
+                                            <span>Member</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="flex gap-2">
                                     <div class="wallet-slot flex-1"><span id="detail-limit" class="text-white text-[11px] font-bold"></span></div>
                                     <div class="wallet-slot flex-1"><span id="detail-balance" class="text-white text-[11px] font-bold"></span></div>
@@ -360,6 +414,33 @@
             <button onclick="copyJoinCode()" class="text-xs text-emerald-600 font-semibold hover:text-emerald-700">Salin Kode</button>
         </div>
         <p class="text-xs text-slate-400 text-center">Anggota bisa bergabung melalui halaman <strong>Join Family</strong> dan memasukkan kode ini.</p>
+    </div>
+</div>
+
+{{-- Modal Konfirmasi Ubah Role --}}
+<div id="modal-role-confirm" class="modal-overlay" onclick="if(event.target===this)closeRoleModal()">
+    <div class="modal-box" style="width:380px">
+        <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+                <div id="modal-role-icon" class="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-100">
+                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                </div>
+                <h2 class="text-base font-bold text-slate-800">Ubah Role Anggota</h2>
+            </div>
+            <button onclick="closeRoleModal()" class="text-slate-400 hover:text-slate-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div id="modal-role-info" class="bg-slate-50 rounded-2xl p-4 mb-5 text-sm text-slate-600"></div>
+        <div id="modal-role-warn-admin" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-2">
+            <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <p class="text-xs text-amber-700">Anggota ini akan mendapat akses <strong>Admin</strong> dan bisa mengelola seluruh anggota, limit, serta data keuangan keluarga.</p>
+        </div>
+        <div id="modal-role-error" class="hidden mb-4 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs text-rose-600"></div>
+        <div class="flex gap-3 mt-2">
+            <button onclick="closeRoleModal()" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Batal</button>
+            <button onclick="confirmRoleChange()" id="btn-confirm-role" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors">Ya, Ubah Role</button>
+        </div>
     </div>
 </div>
 
@@ -526,7 +607,17 @@ async function openDetail(idx) {
     // Populate wallet card
     document.getElementById('detail-name').textContent = m.full_name || '-';
     document.getElementById('detail-avatar').textContent = (m.full_name || 'A').charAt(0).toUpperCase();
-    document.getElementById('detail-role-badge').textContent = m.role === 'admin' ? 'Admin' : 'Member';
+    // Update role badge/dropdown
+    const isAdmin = m.role === 'admin';
+    const roleLabel = document.getElementById('detail-role-label');
+    const roleBadgeBtn = document.getElementById('detail-role-badge');
+    roleLabel.textContent = isAdmin ? 'Admin' : 'Member';
+    // Mark active option
+    document.getElementById('role-option-admin').classList.toggle('active', isAdmin);
+    document.getElementById('role-option-member').classList.toggle('active', !isAdmin);
+    // Hide dropdown in case it was open
+    document.getElementById('role-dropdown-menu').classList.remove('open');
+    roleBadgeBtn.classList.remove('open');
     const limitBase = m.monthly_limit_base || 0;
     const usedLimit = m.current_month_expense || 0;
     document.getElementById('detail-limit').textContent = limitBase > 0 ? fmtRp(limitBase) : 'Belum diset';
@@ -616,11 +707,170 @@ async function loadMemberTransactions(userId) {
     } catch(e) {}
 }
 
+// ─── Role Dropdown ────────────────────────────────────────────────
+let pendingRole = null;
+
+function toggleRoleDropdown(e) {
+    e.stopPropagation();
+    const btn  = document.getElementById('detail-role-badge');
+    const menu = document.getElementById('role-dropdown-menu');
+    const isOpen = menu.classList.contains('open');
+    closeAllDropdowns();
+    if (!isOpen) {
+        btn.classList.add('open');
+        menu.classList.add('open');
+    }
+}
+
+function closeAllDropdowns() {
+    document.getElementById('role-dropdown-menu')?.classList.remove('open');
+    document.getElementById('detail-role-badge')?.classList.remove('open');
+}
+
+function selectRole(newRole) {
+    closeAllDropdowns();
+    if (!currentMember) return;
+    const currentRole = currentMember.role || 'member';
+    if (newRole === currentRole) return; // tidak ada perubahan
+
+    pendingRole = newRole;
+
+    // Isi modal konfirmasi
+    const name = currentMember.full_name || '-';
+    const fromLabel = currentRole === 'admin' ? 'Admin' : 'Member';
+    const toLabel   = newRole === 'admin' ? 'Admin' : 'Member';
+    const fromColor = currentRole === 'admin' ? '#059669' : '#94a3b8';
+    const toColor   = newRole === 'admin' ? '#059669' : '#94a3b8';
+    document.getElementById('modal-role-info').innerHTML = `
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 text-sm">${name.charAt(0).toUpperCase()}</div>
+            <div>
+                <p class="font-semibold text-slate-800 text-sm">${name}</p>
+                <p class="text-xs text-slate-400">${currentMember.email || ''}</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+            <span style="background:#f1f5f9;color:${fromColor};padding:3px 10px;border-radius:20px;font-weight:700;">${fromLabel}</span>
+            <svg style="width:14px;height:14px;color:#64748b;flex-shrink:0;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            <span style="background:#f1f5f9;color:${toColor};padding:3px 10px;border-radius:20px;font-weight:700;">${toLabel}</span>
+        </div>`;
+
+    // Tampilkan warning hanya saat ubah jadi admin
+    const warn = document.getElementById('modal-role-warn-admin');
+    warn.classList.toggle('hidden', newRole !== 'admin');
+
+    document.getElementById('modal-role-error').classList.add('hidden');
+    document.getElementById('btn-confirm-role').textContent = 'Ya, Ubah Role';
+    document.getElementById('btn-confirm-role').disabled = false;
+    document.getElementById('modal-role-confirm').classList.add('open');
+}
+
+function closeRoleModal() {
+    document.getElementById('modal-role-confirm').classList.remove('open');
+    pendingRole = null;
+}
+
+async function confirmRoleChange() {
+    if (!currentMember || !pendingRole) return;
+    const btn = document.getElementById('btn-confirm-role');
+    const errEl = document.getElementById('modal-role-error');
+    errEl.classList.add('hidden');
+    btn.textContent = 'Menyimpan...';
+    btn.disabled = true;
+
+    try {
+        // Kirim request ke API untuk update role
+        const res = await fetch(`/api/v1/families/members/${currentMember.id}/role`, {
+            method: 'PUT',
+            headers: HEADERS,
+            body: JSON.stringify({ role: pendingRole })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            errEl.textContent = data.message || 'Gagal mengubah role.';
+            errEl.classList.remove('hidden');
+            btn.textContent = 'Ya, Ubah Role';
+            btn.disabled = false;
+            return;
+        }
+
+        // Update local state
+        const oldRole = currentMember.role;
+        currentMember.role = pendingRole;
+        const mi = members.findIndex(m => m.id === currentMember.id);
+        if (mi !== -1) members[mi].role = pendingRole;
+
+        // Update badge label
+        const roleLabel = document.getElementById('detail-role-label');
+        roleLabel.textContent = pendingRole === 'admin' ? 'Admin' : 'Member';
+        document.getElementById('role-option-admin').classList.toggle('active', pendingRole === 'admin');
+        document.getElementById('role-option-member').classList.toggle('active', pendingRole !== 'admin');
+
+        // Re-render cards
+        renderMembers();
+
+        // Tampilkan toast
+        showRoleToast(currentMember.full_name, pendingRole);
+        closeRoleModal();
+
+    } catch(e) {
+        errEl.textContent = 'Koneksi gagal.';
+        errEl.classList.remove('hidden');
+        btn.textContent = 'Ya, Ubah Role';
+        btn.disabled = false;
+    }
+}
+
+function showRoleToast(name, role) {
+    const existing = document.getElementById('role-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'role-toast';
+    toast.style.cssText = `
+        position:fixed;bottom:28px;right:28px;z-index:99999;
+        background:#1e293b;color:white;
+        padding:12px 18px;border-radius:14px;
+        font-size:13px;font-weight:600;
+        display:flex;align-items:center;gap:10px;
+        box-shadow:0 8px 32px rgba(0,0,0,0.22);
+        animation: slideInToast .3s ease;
+    `;
+    toast.innerHTML = `
+        <div style="width:24px;height:24px;background:#059669;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg style="width:13px;height:13px;" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <span>${name} berhasil dijadikan <strong>${role === 'admin' ? 'Admin' : 'Member'}</strong></span>
+    `;
+    // Add animation keyframes if not yet
+    if (!document.getElementById('toast-style')) {
+        const s = document.createElement('style');
+        s.id = 'toast-style';
+        s.textContent = '@keyframes slideInToast{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}';
+        document.head.appendChild(s);
+    }
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.transition = 'opacity .3s ease';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 350);
+    }, 3500);
+}
+
+// Tutup dropdown saat klik di luar
+document.addEventListener('click', function(e) {
+    const wrapper = document.getElementById('detail-role-wrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        closeAllDropdowns();
+    }
+});
+
 function backToList() {
     document.getElementById('panel-list').style.display = '';
     document.getElementById('panel-detail').classList.remove('open');
     document.getElementById('page-title').textContent = 'Kelola Anggota Keluarga';
     document.getElementById('page-sub').textContent = 'Atur hak akses, limit pengeluaran, dan undang anggota baru.';
+    closeAllDropdowns();
     currentMember = null;
 }
 

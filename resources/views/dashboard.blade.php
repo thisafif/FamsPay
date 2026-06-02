@@ -972,7 +972,7 @@
                             $mName   = $member['full_name'] ?? '-';
                         @endphp
                         {{-- Mini dompet fisik per member — lebih besar, dengan dekorasi --}}
-                        <a href="{{ route('transaksi') }}" class="wallet-physical {{ $dColor }} mt-3 block" style="text-decoration:none;">
+                        <a href="{{ route('anggota') }}" class="wallet-physical {{ $dColor }} mt-3 block" style="text-decoration:none;">
                             <div class="card-stack-1"></div>
                             <div class="card-stack-2"></div>
                             <div class="wallet-body text-white" style="padding:12px 14px 12px; position:relative;">
