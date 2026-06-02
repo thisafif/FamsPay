@@ -221,6 +221,46 @@
     </header>
 
     <main class="flex-1 px-7 py-6 space-y-5">
+        {{-- Family Dashboard Card --}}
+        <div class="bg-white rounded-2xl border border-slate-100 p-5">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>
+                    </div>
+                    <div class="flex-1 min-w-0" id="family-name-display-wrapper">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Nama Keluarga</p>
+                        <div id="family-name-row" class="flex items-center gap-2 mt-0.5">
+                            <span id="family-name-display" class="font-bold text-slate-800 text-base truncate">—</span>
+                            <button onclick="openEditFamilyName()" title="Edit nama keluarga"
+                                class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-emerald-100 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-colors flex-shrink-0">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            </button>
+                        </div>
+                        {{-- Inline edit input (hidden by default) --}}
+                        <div id="family-name-edit-wrapper" style="display:none;" class="flex items-center gap-2 mt-1">
+                            <input id="family-name-input" type="text" maxlength="60" placeholder="Nama keluarga..."
+                                class="border border-emerald-300 rounded-lg px-2.5 py-1 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-300 flex-1 min-w-0">
+                            <button onclick="saveFamilyName()" class="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition-colors">Simpan</button>
+                            <button onclick="cancelEditFamilyName()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-lg transition-colors">Batal</button>
+                        </div>
+                        <p id="family-name-error" class="hidden text-[10px] text-rose-500 mt-1"></p>
+                    </div>
+                </div>
+                <div class="flex gap-4 ml-4 flex-shrink-0">
+                    <div class="text-right">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Total Pemasukan</p>
+                        <p id="family-total-income" class="font-bold text-emerald-600 text-sm">—</p>
+                    </div>
+                    <div class="w-px bg-slate-100"></div>
+                    <div class="text-right">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Total Pengeluaran</p>
+                        <p id="family-total-expense" class="font-bold text-rose-500 text-sm">—</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- Join Code Banner --}}
         <div class="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-5 flex items-center justify-between">
             <div>
@@ -484,14 +524,107 @@ function fmtRp(n) { return 'Rp' + Math.abs(n || 0).toLocaleString('id-ID'); }
 function fmtDate(d) { if(!d) return '-'; return new Date(d).toLocaleDateString('id-ID', {day:'numeric',month:'short',year:'numeric'}); }
 
 // Load family data (join code)
+let familyId = null;
+
 async function loadFamily() {
     try {
         const res  = await fetch('/api/v1/families/me', { headers: HEADERS });
         const data = await res.json();
-        joinCode = data.data?.join_code || '';
+        const fam  = data.data || {};
+        joinCode = fam.join_code || '';
+        familyId = fam.id || null;
+
+        // Display family name — field dari API adalah 'family_name'
+        const nameEl = document.getElementById('family-name-display');
+        if (nameEl) nameEl.textContent = fam.family_name || '—';
+
         renderJoinCode(joinCode, 'code-chars');
         renderJoinCode(joinCode, 'invite-code-chars');
+
+        // Load family dashboard (income/expense totals)
+        loadFamilyDashboard();
     } catch(e) {}
+}
+
+async function loadFamilyDashboard() {
+    try {
+        // Ambil semua transaksi family (admin mendapat semua member, tanpa filter tanggal = semua waktu)
+        const res  = await fetch('/api/v1/transactions', { headers: HEADERS });
+        const data = await res.json();
+        const txns = data.data || [];
+
+        let totalIncome  = 0;
+        let totalExpense = 0;
+        txns.forEach(t => {
+            if (t.type === 'income')  totalIncome  += (t.amount || 0);
+            else                      totalExpense += (t.amount || 0);
+        });
+
+        const incEl = document.getElementById('family-total-income');
+        const expEl = document.getElementById('family-total-expense');
+        if (incEl) incEl.textContent = '+' + fmtRp(totalIncome);
+        if (expEl) expEl.textContent = '-' + fmtRp(totalExpense);
+    } catch(e) {}
+}
+
+// Edit family name
+function openEditFamilyName() {
+    const current = document.getElementById('family-name-display').textContent.replace('—','').trim();
+    document.getElementById('family-name-input').value = current;
+    // Sembunyikan baris nama+pensil, tampilkan form edit
+    document.getElementById('family-name-row').style.display = 'none';
+    document.getElementById('family-name-edit-wrapper').style.display = 'flex';
+    document.getElementById('family-name-error').classList.add('hidden');
+    document.getElementById('family-name-input').focus();
+}
+
+function cancelEditFamilyName() {
+    document.getElementById('family-name-edit-wrapper').style.display = 'none';
+    document.getElementById('family-name-row').style.display = 'flex';
+}
+
+async function saveFamilyName() {
+    const name  = document.getElementById('family-name-input').value.trim();
+    const errEl = document.getElementById('family-name-error');
+    errEl.classList.add('hidden');
+    if (!name) { errEl.textContent = 'Nama tidak boleh kosong.'; errEl.classList.remove('hidden'); return; }
+    if (!familyId) { errEl.textContent = 'ID keluarga tidak ditemukan.'; errEl.classList.remove('hidden'); return; }
+
+    const saveBtn = document.querySelector('#family-name-edit-wrapper button:first-of-type');
+    saveBtn.textContent = 'Menyimpan...'; saveBtn.disabled = true;
+
+    try {
+        const res  = await fetch(`/api/v1/families/${familyId}`, {
+            method: 'PUT', headers: HEADERS,
+            body: JSON.stringify({ family_name: name })   // field BE: 'family_name'
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errEl.textContent = data.message || 'Gagal menyimpan nama.';
+            errEl.classList.remove('hidden');
+            saveBtn.textContent = 'Simpan'; saveBtn.disabled = false;
+            return;
+        }
+        document.getElementById('family-name-display').textContent = name;
+        cancelEditFamilyName();
+        saveBtn.textContent = 'Simpan'; saveBtn.disabled = false;
+        // Toast
+        showFamilyNameToast(name);
+    } catch(e) {
+        errEl.textContent = 'Koneksi gagal.'; errEl.classList.remove('hidden');
+        saveBtn.textContent = 'Simpan'; saveBtn.disabled = false;
+    }
+}
+
+function showFamilyNameToast(name) {
+    const existing = document.getElementById('family-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'family-toast';
+    toast.style.cssText = `position:fixed;bottom:28px;right:28px;z-index:99999;background:#1e293b;color:white;padding:12px 18px;border-radius:14px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.22);animation:slideInToast .3s ease;`;
+    toast.innerHTML = `<div style="width:24px;height:24px;background:#059669;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg style="width:13px;height:13px;" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div><span>Nama keluarga berhasil diubah ke <strong>${name}</strong></span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.transition='opacity .3s ease'; toast.style.opacity='0'; setTimeout(()=>toast.remove(),350); }, 3000);
 }
 
 function renderJoinCode(code, targetId) {

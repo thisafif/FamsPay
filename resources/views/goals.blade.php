@@ -198,6 +198,34 @@
     </div>
 </div>
 
+
+{{-- MODAL TARIK SALDO --}}
+<div id="modal-withdraw" class="modal-overlay" onclick="if(event.target===this)closeWithdrawModal()">
+    <div class="modal-box" style="width:360px">
+        <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
+                    <svg style="width:18px;height:18px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                </div>
+                <h2 class="text-base font-bold text-slate-800">Tarik Saldo</h2>
+            </div>
+            <button onclick="closeWithdrawModal()" class="text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        </div>
+        <p id="modal-withdraw-name" class="text-xs text-slate-500 mb-1"></p>
+        <p id="modal-withdraw-balance" class="text-xs font-semibold text-emerald-600 mb-4"></p>
+        <div id="modal-withdraw-error" class="hidden mb-4 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs text-rose-600"></div>
+        <div><label class="text-xs font-semibold text-slate-600 mb-1.5 block">Jumlah Penarikan (Rp)</label><input id="withdraw-amount" type="number" min="1" placeholder="500000" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"></div>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mt-3 flex items-start gap-2">
+            <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <p class="text-xs text-amber-700">Dana akan ditarik dari goal dan dikembalikan ke saldo dompetmu.</p>
+        </div>
+        <div class="flex gap-3 mt-6">
+            <button onclick="closeWithdrawModal()" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Batal</button>
+            <button id="btn-withdraw" onclick="submitWithdraw()" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 transition-colors">Tarik</button>
+        </div>
+    </div>
+</div>
+
 {{-- MODAL KONFIRMASI ARCHIVE (delete) --}}
 <div id="modal-archive" class="modal-overlay" onclick="if(event.target===this)closeArchiveModal()">
     <div class="modal-box" style="width:340px">
@@ -224,6 +252,7 @@ let goals = [];
 let editGoalId    = null;
 let saldoGoalId   = null;
 let archiveGoalId = null;
+let withdrawGoalId = null;
 let saldoConfirm  = false;
 
 function fmtRp(n) { return 'Rp' + Math.abs(n || 0).toLocaleString('id-ID'); }
@@ -327,6 +356,9 @@ function renderGoals() {
             <div class="flex gap-2">
                 <button onclick="openSaldo(${idx})" class="flex-1 py-2 rounded-xl text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">
                     Tambah Saldo
+                </button>
+                <button onclick="openWithdraw(${idx})" class="flex-1 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors" ${collected <= 0 ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>
+                    Tarik Saldo
                 </button>
                 <button onclick="openArchive(${idx})" class="w-9 h-9 rounded-xl bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-500 transition-colors flex-shrink-0">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -436,6 +468,41 @@ async function submitSaldo() {
         closeSaldoModal();
         loadGoals();
     } catch(e) { errEl.textContent = 'Koneksi gagal.'; errEl.classList.remove('hidden'); btn.textContent = 'Tambah'; btn.disabled = false; }
+}
+
+// Withdraw modal
+function openWithdraw(idx) {
+    const g = goals[idx];
+    withdrawGoalId = g.id;
+    document.getElementById('modal-withdraw-name').textContent    = 'Target: ' + (g.title || '-');
+    document.getElementById('modal-withdraw-balance').textContent = 'Saldo terkumpul: ' + fmtRp(g.current_amount || 0);
+    document.getElementById('withdraw-amount').value = '';
+    document.getElementById('modal-withdraw-error').classList.add('hidden');
+    document.getElementById('btn-withdraw').textContent = 'Tarik';
+    document.getElementById('btn-withdraw').disabled = false;
+    document.getElementById('modal-withdraw').classList.add('open');
+}
+function closeWithdrawModal() { document.getElementById('modal-withdraw').classList.remove('open'); withdrawGoalId = null; }
+
+async function submitWithdraw() {
+    const amount = parseInt(document.getElementById('withdraw-amount').value);
+    const errEl  = document.getElementById('modal-withdraw-error');
+    errEl.classList.add('hidden');
+    if (!amount || amount < 1) { errEl.textContent = 'Jumlah harus lebih dari 0.'; errEl.classList.remove('hidden'); return; }
+
+    const btn = document.getElementById('btn-withdraw');
+    btn.textContent = 'Memproses...'; btn.disabled = true;
+
+    try {
+        const res  = await fetch(`/api/v1/goals/${withdrawGoalId}/withdraw`, {
+            method: 'POST', headers: HEADERS,
+            body: JSON.stringify({ amount })
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.message || 'Gagal menarik saldo.'; errEl.classList.remove('hidden'); btn.textContent = 'Tarik'; btn.disabled = false; return; }
+        closeWithdrawModal();
+        loadGoals();
+    } catch(e) { errEl.textContent = 'Koneksi gagal.'; errEl.classList.remove('hidden'); btn.textContent = 'Tarik'; btn.disabled = false; }
 }
 
 // Archive

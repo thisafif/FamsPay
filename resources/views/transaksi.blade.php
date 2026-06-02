@@ -130,11 +130,47 @@
                     <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                     <input id="search-input" type="text" placeholder="Cari transaksi, kategori, atau tanggal..." class="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-transparent bg-slate-50">
                 </div>
-                <select id="filter-type" class="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-slate-50 text-slate-600">
-                    <option value="">Semua Tipe</option>
-                    <option value="income">Pemasukan</option>
-                    <option value="expense">Pengeluaran</option>
-                </select>
+                <div class="relative" id="filter-dropdown-wrapper">
+                    <button id="filter-dropdown-btn" onclick="toggleFilterDropdown()" class="flex items-center gap-2 text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors min-w-[140px] justify-between">
+                        <span id="filter-dropdown-label">Semua Tipe</span>
+                        <svg id="filter-chevron" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="filter-dropdown-menu" class="hidden absolute top-full left-0 mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50">
+                        <div class="px-3 pt-3 pb-1.5">
+                            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tipe Transaksi</p>
+                        </div>
+                        <div class="filter-opt px-3 py-2 flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 transition-colors" data-type="" data-period="" onclick="applyFilter(this)">
+                            <span class="w-2 h-2 rounded-full bg-slate-400 flex-shrink-0"></span>
+                            <span class="text-sm text-slate-700 font-medium">Semua Tipe</span>
+                        </div>
+                        <div class="filter-opt px-3 py-2 flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 transition-colors" data-type="income" data-period="" onclick="applyFilter(this)">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                            <span class="text-sm text-slate-700 font-medium">Pemasukan</span>
+                        </div>
+                        <div class="filter-opt px-3 py-2 flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 transition-colors" data-type="expense" data-period="" onclick="applyFilter(this)">
+                            <span class="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0"></span>
+                            <span class="text-sm text-slate-700 font-medium">Pengeluaran</span>
+                        </div>
+                        <div class="border-t border-slate-100 mx-3 my-1"></div>
+                        <div class="px-3 pt-1.5 pb-1.5">
+                            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Periode Waktu</p>
+                        </div>
+                        <div class="filter-opt px-3 py-2 flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 transition-colors" data-type="" data-period="daily" onclick="applyFilter(this)">
+                            <span class="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0"></span>
+                            <span class="text-sm text-slate-700 font-medium">Hari Ini</span>
+                        </div>
+                        <div class="filter-opt px-3 py-2 flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 transition-colors" data-type="" data-period="monthly" onclick="applyFilter(this)">
+                            <span class="w-2 h-2 rounded-full bg-violet-400 flex-shrink-0"></span>
+                            <span class="text-sm text-slate-700 font-medium">Bulan Ini</span>
+                        </div>
+                        <div class="filter-opt px-3 py-2 mb-1.5 flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 transition-colors" data-type="" data-period="yearly" onclick="applyFilter(this)">
+                            <span class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
+                            <span class="text-sm text-slate-700 font-medium">Tahun Ini</span>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" id="filter-type" value="">
+                <input type="hidden" id="filter-period" value="">
                 <button id="btn-tambah-transaksi" onclick="openModal('add')" class="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-emerald-200">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                     Tambah Transaksi
@@ -417,14 +453,33 @@ document.getElementById('btn-confirm-delete').onclick = async function() {
 
 // Load transactions
 async function loadTransactions() {
-    const typeFilter = document.getElementById('filter-type').value;
+    const typeFilter   = document.getElementById('filter-type').value;
+    const periodFilter = document.getElementById('filter-period').value;
     let url = '/api/v1/transactions';
     if (typeFilter) url += '?type=' + typeFilter;
 
     try {
         const res  = await fetch(url, { headers: HEADERS });
         const data = await res.json();
-        allTxns = data.data || [];
+        let txns = data.data || [];
+
+        // Apply period filter client-side
+        if (periodFilter) {
+            const now   = new Date();
+            const today = now.toISOString().split('T')[0];
+            const yr    = now.getFullYear();
+            const mo    = String(now.getMonth() + 1).padStart(2, '0');
+            txns = txns.filter(t => {
+                if (!t.txn_date) return false;
+                const d = t.txn_date.slice(0, 10);
+                if (periodFilter === 'daily')   return d === today;
+                if (periodFilter === 'monthly') return d.startsWith(`${yr}-${mo}`);
+                if (periodFilter === 'yearly')  return d.startsWith(`${yr}`);
+                return true;
+            });
+        }
+
+        allTxns = txns;
         renderTable();
     } catch(e) {
         document.getElementById('txn-table-body').innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-rose-400 text-sm">Gagal memuat data transaksi.</td></tr>`;
@@ -504,8 +559,47 @@ function renderTable() {
 
 // Event listeners
 document.getElementById('search-input').addEventListener('input', () => { currentPage = 1; renderTable(); });
-document.getElementById('filter-type').addEventListener('change', () => { currentPage = 1; loadTransactions(); });
 document.getElementById('per-page').addEventListener('change', function() { perPage = parseInt(this.value); currentPage = 1; renderTable(); });
+
+// Filter dropdown
+function toggleFilterDropdown() {
+    const menu = document.getElementById('filter-dropdown-menu');
+    const chevron = document.getElementById('filter-chevron');
+    const isHidden = menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', !isHidden);
+    chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
+}
+
+function applyFilter(el) {
+    const type   = el.dataset.type;
+    const period = el.dataset.period;
+    document.getElementById('filter-type').value   = type;
+    document.getElementById('filter-period').value = period;
+
+    // Update label
+    const label = el.querySelector('span:last-child').textContent;
+    document.getElementById('filter-dropdown-label').textContent = label;
+
+    // Highlight active
+    document.querySelectorAll('.filter-opt').forEach(o => o.classList.remove('bg-emerald-50'));
+    el.classList.add('bg-emerald-50');
+
+    // Close dropdown
+    document.getElementById('filter-dropdown-menu').classList.add('hidden');
+    document.getElementById('filter-chevron').style.transform = '';
+
+    currentPage = 1;
+    loadTransactions();
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+    const wrapper = document.getElementById('filter-dropdown-wrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        document.getElementById('filter-dropdown-menu').classList.add('hidden');
+        document.getElementById('filter-chevron').style.transform = '';
+    }
+});
 
 // Init
 setType('expense');
