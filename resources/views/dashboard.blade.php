@@ -6,6 +6,23 @@
     <title>Dashboard — FamsPay</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @if($isNewUser)
+    {{-- Script ini berjalan SEBELUM browser paint apapun.
+         Kalau user sudah pernah lihat tour, sembunyikan elemen tour via CSS
+         sehingga tidak pernah terlihat sama sekali (tidak ada flash). --}}
+    <script>
+        (function() {
+            try {
+                if (localStorage.getItem('famspay_tour_done') === '1') {
+                    // Inject style untuk sembunyikan tour sebelum DOM dirender
+                    var s = document.createElement('style');
+                    s.textContent = '#tour-backdrop,#tour-highlight,#tour-popup{display:none!important;}';
+                    document.head.appendChild(s);
+                }
+            } catch(e) {}
+        })();
+    </script>
+    @endif
     <style>
         * { font-family: 'Plus Jakarta Sans', sans-serif; }
 
@@ -1122,110 +1139,6 @@
 
 {{-- ── SCRIPTS ── --}}
 <script>
-// ─────────────────────────────────────────
-// TOUR GUIDE
-// ─────────────────────────────────────────
-@if($isNewUser)
-(function() {
-    try { if (localStorage.getItem('famspay_tour_done') === '1') { cleanupTour(); return; } } catch(e){}
-
-    const popup    = document.getElementById('tour-popup');
-    const hl       = document.getElementById('tour-highlight');
-    const backdrop = document.getElementById('tour-backdrop');
-
-    const steps = {
-        1: { target: null,                   position: 'center'  },
-        2: { target: 'nav-transaksi',        position: 'right'   },
-        3: { target: 'nav-goals',            position: 'right'   },
-        4: { target: 'btn-tambah-transaksi', position: 'above',  fallback: 'btn-tambah-target' },
-    };
-
-    function showStep(n) {
-        document.querySelectorAll('.tour-step').forEach(el => el.classList.add('hidden'));
-        const stepEl = document.getElementById('ts-' + n);
-        if (stepEl) {
-            stepEl.classList.remove('hidden');
-            // re-trigger animasi
-            stepEl.style.animation = 'none';
-            stepEl.offsetHeight; // reflow
-            stepEl.style.animation = '';
-        }
-
-        const cfg = steps[n];
-        if (!cfg) return;
-
-        let targetId = cfg.target;
-        if (targetId && !document.getElementById(targetId) && cfg.fallback) {
-            targetId = cfg.fallback;
-        }
-
-        if (!targetId || !document.getElementById(targetId)) {
-            // Center — di tengah area konten (offset 200px sidebar)
-            popup.style.top       = '50%';
-            popup.style.left      = 'calc(200px + (100vw - 200px) / 2)';
-            popup.style.transform = 'translate(-50%, -50%)';
-            hl.style.display = 'none';
-            return;
-        }
-
-        popup.style.transform = 'none';
-
-        const el   = document.getElementById(targetId);
-        const rect = el.getBoundingClientRect();
-
-    // Sorot elemen
-        hl.style.display = 'block';
-        // requestAnimationFrame memastikan browser sudah paint sebelum baca rect
-        requestAnimationFrame(function() {
-            const freshRect = el.getBoundingClientRect();
-            hl.style.top    = (freshRect.top  - 6) + 'px';
-            hl.style.left   = (freshRect.left - 6) + 'px';
-            hl.style.width  = (freshRect.width  + 12) + 'px';
-            hl.style.height = (freshRect.height + 12) + 'px';
-        });
-
-        const pw = 340, ph = 230;
-        let pTop, pLeft;
-
-        if (cfg.position === 'right') {
-            pTop  = Math.max(rect.top + rect.height / 2 - ph / 2, 12);
-            pLeft = rect.right + 16;
-        } else if (cfg.position === 'above') {
-            pTop  = rect.top - ph - 16;
-            pLeft = rect.left + rect.width / 2 - pw / 2;
-        } else {
-            pTop  = window.innerHeight / 2 - ph / 2;
-            pLeft = (200 + window.innerWidth) / 2 - pw / 2;
-        }
-
-        pTop  = Math.max(12, Math.min(pTop,  window.innerHeight - ph - 12));
-        pLeft = Math.max(12, Math.min(pLeft, window.innerWidth  - pw - 12));
-
-        popup.style.top  = pTop  + 'px';
-        popup.style.left = pLeft + 'px';
-
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    window.tourNext = function(n) { showStep(n); };
-
-    window.closeTour = function() {
-        if (popup)    { popup.style.opacity = '0'; setTimeout(() => popup.remove(), 220); }
-        if (hl)       hl.remove();
-        if (backdrop) { backdrop.style.opacity = '0'; backdrop.style.transition = 'opacity .22s'; setTimeout(() => backdrop.remove(), 230); }
-        try { localStorage.setItem('famspay_tour_done', '1'); } catch(e) {}
-    };
-
-    function cleanupTour() {
-        if (popup)    popup.remove();
-        if (hl)       hl.remove();
-        if (backdrop) backdrop.remove();
-    }
-
-    showStep(1);
-})();
-@endif
-
 // ─────────────────────────────────────────
 // SEARCH
 // ─────────────────────────────────────────
